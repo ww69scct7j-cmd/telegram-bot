@@ -24,7 +24,7 @@ async def handle_media(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await message.reply_text("أرسل لي أي مقطع صوتي أو فيديو وسأبحث لك عنه فوراً.")
         return
 
-    await message.reply_text("🔍 جاري فحص البصمة الموسيقية واللحن والكلمات...")
+    await message.reply_text("🔍 جاري تحليل البصمة الموسيقية واللحن والعزف والكلمات بدقة عالية...")
 
     file_path = "temp_media_file"
     await file_obj.download_to_drive(file_path)
@@ -46,41 +46,30 @@ async def handle_media(update: Update, context: ContextTypes.DEFAULT_TYPE):
             title = song.get('title', 'غير معروف')
             artist = song.get('artist', 'غير معروف')
             album = song.get('album', 'غير متوفر')
-            release_date = song.get('release_date', '')
+            release_date = song.get('release_date', 'غير متوفر')
             song_link = song.get('song_link', '')
-
-            year = None
-            if release_date:
-                try:
-                    year = int(release_date.split('-')[0])
-                except ValueError:
-                    year = None
-
-            if year and not (2007 <= year <= 2026):
-                await message.reply_text(f"⚠️ تم التعرف على الأغنية ({title} - {artist}) ولكن تاريخ إصدارها ({year}) خارج نطاق (2007 - 2026).")
-                return
-
+            
             lyrics_data = song.get('lyrics', {})
             lyrics_text = lyrics_data.get('lyrics', '')
 
             reply_text = (
-                f"🎵 **تم التعرف على الأغنية بنجاح!**\n\n"
+                f"🎵 **تم العثور على الأغنية بنجاح!**\n\n"
                 f"• **اسم الأغنية:** {title}\n"
                 f"• **المطرب / الفنان:** {artist}\n"
                 f"• **الألبوم:** {album}\n"
-                f"• **تاريخ الإصدار:** {release_date if release_date else 'ضمن النطاق المعتمد'}\n"
+                f"• **تاريخ الإصدار:** {release_date}\n"
             )
 
             if song_link:
                 reply_text += f"• **رابط الاستماع:** {song_link}\n"
 
             if lyrics_text:
-                lines = lyrics_text.strip().split('\n')[:5]
+                lines = lyrics_text.strip().split('\n')[:6]
                 reply_text += f"\n📝 **كلمات الأغنية:**\n" + '\n'.join(lines)
 
             await message.reply_text(reply_text)
         else:
-            await message.reply_text("❌ لم يتم العثور على مطابقة مؤكدة للبصمة الموسيقية بدون تخمين.")
+            await message.reply_text("❌ لم يتم التعرف على المقطع. قد يكون الصوت غير واضح تماماً أو غير مسجل بقاعدة بيانات البحث.")
 
     except Exception as e:
         await message.reply_text(f"حدث خطأ أثناء المعالجة: {str(e)}")
