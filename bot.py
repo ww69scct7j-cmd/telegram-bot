@@ -10,7 +10,6 @@ async def handle_media(update: Update, context: ContextTypes.DEFAULT_TYPE):
     message = update.message
     file_obj = None
 
-    # 1. استقبال أي نوع فيديو أو صوتي أو مستند مهما كانت المدة أو المفهوم
     if message.audio:
         file_obj = await message.audio.get_file()
     elif message.voice:
@@ -22,16 +21,15 @@ async def handle_media(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif message.document:
         file_obj = await message.document.get_file()
     else:
-        await message.reply_text("الرجاء إرسال مقطع صوتي أو فيديو أو ملف وسائط لفحصه.")
+        await message.reply_text("أرسل لي أي مقطع صوتي أو فيديو وسأبحث لك عنه فوراً.")
         return
 
-    await message.reply_text("🔍 جاري تحليل البصمة الصوتية، العزف، اللحن، والكلمات (للأغاني المصرية والمقاطع ذات المشاهدات القليلة أو القنوات الخاصة)...")
+    await message.reply_text("🔍 جاري فحص البصمة الموسيقية واللحن والكلمات...")
 
     file_path = "temp_media_file"
     await file_obj.download_to_drive(file_path)
 
     try:
-        # 2. إرسال الملف كاملاً لتجاوز التسريع والحقوق والتعرف على النغمة والكلمات
         with open(file_path, "rb") as f:
             data = {
                 'api_token': AUDD_API_TOKEN,
@@ -50,8 +48,7 @@ async def handle_media(update: Update, context: ContextTypes.DEFAULT_TYPE):
             album = song.get('album', 'غير متوفر')
             release_date = song.get('release_date', '')
             song_link = song.get('song_link', '')
-            
-            # 3. التحقق من سنة الإصدار (من 2007 إلى 2026)
+
             year = None
             if release_date:
                 try:
@@ -60,32 +57,30 @@ async def handle_media(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     year = None
 
             if year and not (2007 <= year <= 2026):
-                await message.reply_text(f"⚠️ تم التعرف على الأغنية ({title} - {artist}) لكن سنة إصدارها ({year}) خارج نطاق السنوات المطلوبة (2007 - 2026).")
+                await message.reply_text(f"⚠️ تم التعرف على الأغنية ({title} - {artist}) ولكن تاريخ إصدارها ({year}) خارج نطاق (2007 - 2026).")
                 return
 
             lyrics_data = song.get('lyrics', {})
             lyrics_text = lyrics_data.get('lyrics', '')
 
             reply_text = (
-                f"🇪🇬 **تم التعرف على الأغنية بنجاح!**\n\n"
+                f"🎵 **تم التعرف على الأغنية بنجاح!**\n\n"
                 f"• **اسم الأغنية:** {title}\n"
                 f"• **المطرب / الفنان:** {artist}\n"
                 f"• **الألبوم:** {album}\n"
-                f"• **سنة الإصدار:** {release_date if release_date else 'ضمن النطاق المحدد (2007-2026)'}\n"
+                f"• **تاريخ الإصدار:** {release_date if release_date else 'ضمن النطاق المعتمد'}\n"
             )
 
             if song_link:
-                reply_text += f"• **رابط الاستماع المباشر:** {song_link}\n"
+                reply_text += f"• **رابط الاستماع:** {song_link}\n"
 
             if lyrics_text:
-                # عرض جزء أولي من الكلمات للتحقق
-                lines = lyrics_text.strip().split('\n')[:4]
-                short_lyrics = '\n'.join(lines)
-                reply_text += f"\n📝 **جزء من كلمات الأغنية:**\n{short_lyrics}\n\n(يمكنك البحث عن الكلمات الكاملة عبر جوجل)"
+                lines = lyrics_text.strip().split('\n')[:5]
+                reply_text += f"\n📝 **كلمات الأغنية:**\n" + '\n'.join(lines)
 
             await message.reply_text(reply_text)
         else:
-            await message.reply_text("❌ لم يتم العثور على مطابقة مؤكدة للبصمة الموسيقية واللحن بدون تخمين.")
+            await message.reply_text("❌ لم يتم العثور على مطابقة مؤكدة للبصمة الموسيقية بدون تخمين.")
 
     except Exception as e:
         await message.reply_text(f"حدث خطأ أثناء المعالجة: {str(e)}")
@@ -100,3 +95,4 @@ def main():
     app.run_polling()
 
 if __name__ == '__main__':
+    main()
