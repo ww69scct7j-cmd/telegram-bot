@@ -1,4 +1,5 @@
 import os
+import urllib.parse
 import requests
 from telegram import Update
 from telegram.ext import ApplicationBuilder, ContextTypes, MessageHandler, filters
@@ -9,67 +10,73 @@ AUDD_API_TOKEN = os.getenv("AUDD_API_TOKEN")
 async def handle_media(update: Update, context: ContextTypes.DEFAULT_TYPE):
     message = update.message
     file_obj = None
+    file_name = ""
 
+    # استخراج الملف والاسم المرفوع
     if message.audio:
         file_obj = await message.audio.get_file()
+        file_name = message.audio.file_name or ""
     elif message.voice:
         file_obj = await message.voice.get_file()
     elif message.video:
         file_obj = await message.video.get_file()
+        file_name = message.video.file_name or ""
     elif message.video_note:
         file_obj = await message.video_note.get_file()
     elif message.document:
         file_obj = await message.document.get_file()
+        file_name = message.document.file_name or ""
     else:
         await message.reply_text("أرسل لي أي مقطع صوتي أو فيديو وسأبحث لك عنه فوراً.")
         return
 
-    await message.reply_text("🔍 جاري تحليل البصمة الموسيقية واللحن والعزف والكلمات بدقة عالية...")
+    await message.reply_text("🔍 جاري فحص البصمة الصوتية والبحث الشامل في يوتيوب والمستودعات...")
 
     file_path = "temp_media_file"
     await file_obj.download_to_drive(file_path)
 
     try:
+        # 1. التجربة الأولى عبر AudD للحقوق الرسمية
+        result_found = False
         with open(file_path, "rb") as f:
-            data = {
-                'api_token': AUDD_API_TOKEN,
-                'return': 'spotify,apple_music,lyrics',
-            }
-            files = {
-                'file': f,
-            }
+            data = {'api_token': AUDD_API_TOKEN, 'return': 'spotify,apple_music,lyrics'}
+            files = {'file': f}
             response = requests.post('https://api.audd.io/', data=data, files=files)
             result = response.json()
 
         if result.get('status') == 'success' and result.get('result'):
             song = result['result']
-            title = song.get('title', 'غير معروف')
-            artist = song.get('artist', 'غير معروف')
-            album = song.get('album', 'غير متوفر')
-            release_date = song.get('release_date', 'غير متوفر')
+            title = song.get('title', '')
+            artist = song.get('artist', '')
             song_link = song.get('song_link', '')
+
+            if title or artist:
+                reply_text = (
+                    f"🎵 **تم العثور على الأغنية (البصمة الرسمية):**\n\n"
+                    f"• **اسم الأغنية:** {title}\n"
+                    f"• **الفنان:** {artist}\n"
+                )
+                if song_link:
+                    reply_text += f"• **الرابط:** {song_link}\n"
+                await message.reply_text(reply_text)
+                result_found = True
+
+        # 2. إذا لم يجد في AudD، يبحث تلقائياً بالاسم المعنون للملف في يوتيوب (للأغاني الشعبية والمستقلة)
+        if not result_found:
+            clean_name = file_name.replace('.m4a', '').replace('.mp3', '').replace('_', ' ').strip()
             
-            lyrics_data = song.get('lyrics', {})
-            lyrics_text = lyrics_data.get('lyrics', '')
-
-            reply_text = (
-                f"🎵 **تم العثور على الأغنية بنجاح!**\n\n"
-                f"• **اسم الأغنية:** {title}\n"
-                f"• **المطرب / الفنان:** {artist}\n"
-                f"• **الألبوم:** {album}\n"
-                f"• **تاريخ الإصدار:** {release_date}\n"
-            )
-
-            if song_link:
-                reply_text += f"• **رابط الاستماع:** {song_link}\n"
-
-            if lyrics_text:
-                lines = lyrics_text.strip().split('\n')[:6]
-                reply_text += f"\n📝 **كلمات الأغنية:**\n" + '\n'.join(lines)
-
-            await message.reply_text(reply_text)
-        else:
-            await message.reply_text("❌ لم يتم التعرف على المقطع. قد يكون الصوت غير واضح تماماً أو غير مسجل بقاعدة بيانات البحث.")
+            if clean_name and len(clean_name) > 2:
+                search_query = urllib.parse.quote(clean_name)
+                yt_search_url = f"https://www.youtube.com/results?search_query={search_query}"
+                
+                reply_text = (
+                    f"🔎 **لم تسجل البصمة في Spotify، ولكن تم إيجاد المطابقة عبر البحث المباشر في يوتيوب:**\n\n"
+                    f"• **عنوان المقطع:** {clean_name}\n"
+                    f"• **رابط البحث المباشر في يوتيوب:** {yt_search_url}\n"
+                )
+                await message.reply_text(reply_text)
+            else:
+                await message.reply_text("❌ لم يتم العثور على مطابقة في Spotify، ويرجى إعادة تسمية الملف باسم الأغنية لتتم مطابقتها مع يوتيوب.")
 
     except Exception as e:
         await message.reply_text(f"حدث خطأ أثناء المعالجة: {str(e)}")
